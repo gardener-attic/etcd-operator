@@ -39,8 +39,9 @@ const (
 )
 
 var (
-	errNoS3ConfigForBackup = errors.New("no backup could be created due to S3 configuration not set")
-	errNoABSCredsForBackup = errors.New("no backup could be created due to ABS credentials not set")
+	errNoS3ConfigForBackup   = errors.New("no backup could be created due to S3 configuration not set")
+	errNoABSCredsForBackup   = errors.New("no backup could be created due to ABS credentials not set")
+	errNoSwiftCredsForBackup = errors.New("no backup could be created due to Swift configuration not set")
 )
 
 type backupManager struct {
@@ -88,6 +89,11 @@ func (bm *backupManager) setupStorage() (s backupstorage.Storage, err error) {
 			return nil, errNoABSCredsForBackup
 		}
 		s, err = backupstorage.NewABSStorage(c.KubeCli, cl.Name, cl.Namespace, *b)
+	case api.BackupStorageTypeSwift:
+		if b.Swift == nil {
+			return nil, errNoSwiftCredsForBackup
+		}
+		s, err = backupstorage.NewSwiftStorage(c.KubeCli, cl.Name, cl.Namespace, *b)
 	}
 	return s, err
 }
@@ -162,6 +168,10 @@ func (bm *backupManager) makeSidecarDeployment() *appsv1beta1.Deployment {
 	case api.BackupStorageTypeABS:
 		if ws := cl.Spec.Backup.ABS; ws != nil {
 			k8sutil.AttachABSToPodSpec(&podTemplate.Spec, *ws)
+		}
+	case api.BackupStorageTypeSwift:
+		if ws := cl.Spec.Backup.Swift; ws != nil {
+			k8sutil.AttachSwiftToPodSpec(&podTemplate.Spec, *ws)
 		}
 	}
 	name := k8sutil.BackupSidecarName(cl.Name)

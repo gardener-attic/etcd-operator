@@ -23,6 +23,7 @@ const (
 	BackupStorageTypePersistentVolume = "PersistentVolume"
 	BackupStorageTypeS3               = "S3"
 	BackupStorageTypeABS              = "ABS"
+	BackupStorageTypeSwift            = "Swift"
 
 	AWSSecretCredentialsFileName = "credentials"
 	AWSSecretConfigFileName      = "config"
@@ -31,6 +32,11 @@ const (
 	ABSStorageAccount = "storage-account"
 	// ABSStorageKey defines the key for the Azure Storage Key value in the ABS Kubernetes secret
 	ABSStorageKey = "storage-key"
+
+	SwiftIdentityEndpoint = "identityEndpoint"
+	SwiftTenantID         = "tenantID"
+	SwiftUsername         = "username"
+	SwiftPassword         = "password"
 )
 
 var (

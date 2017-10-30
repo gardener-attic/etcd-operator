@@ -149,6 +149,45 @@ func AttachABSToPodSpec(ps *v1.PodSpec, ws api.ABSSource) {
 	})
 }
 
+// AttachSwiftToPodSpec attaches Swift credentials to a Pod
+func AttachSwiftToPodSpec(ps *v1.PodSpec, s api.SwiftSource) {
+	identityEndpointSelector := v1.SecretKeySelector{
+		LocalObjectReference: v1.LocalObjectReference{Name: s.SwiftSecret},
+		Key:                  api.SwiftIdentityEndpoint,
+	}
+	tenantIDSelector := v1.SecretKeySelector{
+		LocalObjectReference: v1.LocalObjectReference{Name: s.SwiftSecret},
+		Key:                  api.SwiftTenantID,
+	}
+	usernameSelector := v1.SecretKeySelector{
+		LocalObjectReference: v1.LocalObjectReference{Name: s.SwiftSecret},
+		Key:                  api.SwiftUsername,
+	}
+	passwordSelector := v1.SecretKeySelector{
+		LocalObjectReference: v1.LocalObjectReference{Name: s.SwiftSecret},
+		Key:                  api.SwiftPassword,
+	}
+	ps.Containers[0].Env = append(ps.Containers[0].Env, v1.EnvVar{
+		Name:      backupenv.SwiftIdentityEndpoint,
+		ValueFrom: &v1.EnvVarSource{SecretKeyRef: &identityEndpointSelector},
+	}, v1.EnvVar{
+		Name:      backupenv.SwiftTenantID,
+		ValueFrom: &v1.EnvVarSource{SecretKeyRef: &tenantIDSelector},
+	}, v1.EnvVar{
+		Name:      backupenv.SwiftUsername,
+		ValueFrom: &v1.EnvVarSource{SecretKeyRef: &usernameSelector},
+	}, v1.EnvVar{
+		Name:      backupenv.SwiftTenantID,
+		ValueFrom: &v1.EnvVarSource{SecretKeyRef: &passwordSelector},
+	}, v1.EnvVar{
+		Name:  backupenv.SwiftContainer,
+		Value: s.SwiftContainer,
+	}, v1.EnvVar{
+		Name:  backupenv.SwiftRegion,
+		Value: s.SwiftRegion,
+	})
+}
+
 func NewBackupPodTemplate(clusterName, account string, sp api.ClusterSpec) v1.PodTemplateSpec {
 	b, err := json.Marshal(sp)
 	if err != nil {
