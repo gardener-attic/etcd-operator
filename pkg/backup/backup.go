@@ -27,6 +27,7 @@ import (
 	"github.com/coreos/etcd-operator/pkg/backup/backupapi"
 	"github.com/coreos/etcd-operator/pkg/backup/env"
 	"github.com/coreos/etcd-operator/pkg/backup/s3"
+	"github.com/coreos/etcd-operator/pkg/backup/swift"
 	"github.com/coreos/etcd-operator/pkg/backup/util"
 	"github.com/coreos/etcd-operator/pkg/util/constants"
 	"github.com/coreos/etcd-operator/pkg/util/etcdutil"
@@ -97,6 +98,12 @@ func NewBackupController(config *BackupControllerConfig) (*BackupController, err
 			return nil, err
 		}
 		be = backend.NewAbsBackend(absCli)
+	case api.BackupStorageTypeSwift:
+		swiftCli, err := swift.New(bp.Swift.SwiftContainer, bp.Swift.SwiftRegion, path.Join(config.Namespace, config.ClusterName))
+		if err != nil {
+			return nil, err
+		}
+		be = backend.NewSwiftBackend(swiftCli)
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %v", bp.StorageType)
 	}
