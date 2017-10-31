@@ -26,10 +26,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
+/*const (
 	tmpDir              = "/tmp"
 	tmpBackupFilePrefix = "etcd-backup-"
-)
+)*/
 
 // ensure swiftBackend satisfies backend interface.
 var _ Backend = &swiftBackend{}

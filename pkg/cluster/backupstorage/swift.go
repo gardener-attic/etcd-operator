@@ -69,6 +69,7 @@ func setupSwiftCreds(kubecli kubernetes.Interface, ns, secret string) (gopherclo
 		TenantID:         string(se.Data[api.SwiftTenantID]),
 		Username:         string(se.Data[api.SwiftUsername]),
 		Password:         string(se.Data[api.SwiftPassword]),
+		TokenID:          string(se.Data[api.SwiftTokenID]),
 	}
 	return ao, err
 }
