@@ -17,7 +17,7 @@ package backupstorage
 import (
 	"path"
 
-	"github.com/rackspace/gophercloud"
+	"github.com/gophercloud/gophercloud"
 
 	api "github.com/coreos/etcd-operator/pkg/apis/etcd/v1beta2"
 	backupswift "github.com/coreos/etcd-operator/pkg/backup/swift"

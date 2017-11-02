@@ -15,14 +15,16 @@
 package swift
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
+	"net/http"
 	"path"
 
-	"github.com/rackspace/gophercloud"
-	"github.com/rackspace/gophercloud/openstack"
-	"github.com/rackspace/gophercloud/openstack/objectstorage/v1/objects"
-	"github.com/rackspace/gophercloud/pagination"
+	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/objects"
+	"github.com/gophercloud/gophercloud/pagination"
 )
 
 // Swift is a helper layer to wrap complex Swift logic.
@@ -43,7 +45,17 @@ func New(container, region, prefix string) (*Swift, error) {
 }
 
 func NewFromAuthOpt(container, region, prefix string, ao gophercloud.AuthOptions) (*Swift, error) {
-	provider, err := openstack.AuthenticatedClient(ao)
+	provider, err := openstack.NewClient(ao.IdentityEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("new openstack client creation failed: %v", err)
+	}
+
+	provider.HTTPClient = http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	err = openstack.Authenticate(provider, ao)
 	if err != nil {
 		return nil, fmt.Errorf("new Openstack client creation failed: %v", err)
 	}
@@ -65,8 +77,11 @@ func NewFromClient(container, prefix string, cli *gophercloud.ServiceClient) *Sw
 	}
 }
 
-func (s *Swift) Put(key string, rs io.ReadSeeker) error {
-	res := objects.Create(s.client, s.container, path.Join(s.prefix, key), rs, nil)
+func (s *Swift) Put(key string, rs io.Reader) error {
+	opts := objects.CreateOpts{
+		Content: rs,
+	}
+	res := objects.Create(s.client, s.container, path.Join(s.prefix, key), opts)
 	return res.Err
 }
 

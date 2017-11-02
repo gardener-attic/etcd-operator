@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
 
 	"github.com/coreos/etcd-operator/pkg/backup/swift"
 	"github.com/coreos/etcd-operator/pkg/backup/util"
@@ -44,32 +43,30 @@ func NewSwiftBackend(swift *swift.Swift) Backend {
 }
 
 func (sb *swiftBackend) Save(version string, snapRev int64, rc io.Reader) (int64, error) {
-	// make a local file copy of the backup first, since swift requires io.ReadSeeker.
-	tmpfile, err := ioutil.TempFile(tmpDir, tmpBackupFilePrefix)
-	if err != nil {
-		return -1, fmt.Errorf("failed to create snapshot tempfile: %v", err)
-	}
-	defer func() {
-		tmpfile.Close()
-		os.Remove(tmpfile.Name())
-	}()
-
-	n, err := io.Copy(tmpfile, rc)
-	if err != nil {
-		return -1, fmt.Errorf("failed to save snapshot to tmpfile: %v", err)
-	}
-	_, err = tmpfile.Seek(0, os.SEEK_SET)
+	// swift put is atomic, so let's go ahead and put the key directly.
+	key := util.MakeBackupName(version, snapRev)
+	err := sb.swift.Put(key, rc)
 	if err != nil {
 		return -1, err
 	}
-	// swift put is atomic, so let's go ahead and put the key directly.
-	key := util.MakeBackupName(version, snapRev)
-	err = sb.swift.Put(key, tmpfile)
+	n, err := sb.getObjectSize(key)
 	if err != nil {
 		return -1, err
 	}
 	logrus.Infof("saved backup %s (size: %d) successfully", key, n)
 	return n, nil
+}
+
+func (sb *swiftBackend) getObjectSize(key string) (int64, error) {
+	rc, err := sb.Open(key)
+
+	b, err := ioutil.ReadAll(rc)
+	if err != nil {
+		rc.Close()
+		return -1, err
+	}
+
+	return int64(len(b)), rc.Close()
 }
 
 func (sb *swiftBackend) GetLatest() (string, error) {
