@@ -1,5 +1,5 @@
-hash: 2b4e18b59c97f36951b11ca898709b4a7d5a2e8ff82d5d31f24d1a3e9fe915a9
-updated: 2017-10-31T09:28:37.903241199-07:00
+hash: 40e734218f16881c0236eb6ef3ad345e96391781382c52d1273160d7de4ec36c
+updated: 2017-11-02T16:15:25.595088+05:30
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -133,6 +133,17 @@ imports:
   - OpenAPIv2
   - compiler
   - extensions
+- name: github.com/gophercloud/gophercloud
+  version: 2bf16b94fdd9b01557c4d076e567fe5cbbe5a961
+  subpackages:
+  - openstack
+  - openstack/identity/v2/tenants
+  - openstack/identity/v2/tokens
+  - openstack/identity/v3/tokens
+  - openstack/objectstorage/v1/accounts
+  - openstack/objectstorage/v1/objects
+  - openstack/utils
+  - pagination
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -249,7 +260,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/appengine
-  version: a2e0dc829727a4f957a7428b1f322805cfc1f362
+  version: 12d5545dc1cfa6047a286d5e853841b6471f4c19
   subpackages:
   - internal
   - internal/app_identity
