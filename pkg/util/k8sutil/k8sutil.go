@@ -254,7 +254,6 @@ func NewPVC(m *etcdutil.Member, cs api.ClusterSpec, clusterName, namespace strin
 			},
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
-			StorageClassName: &cs.Pod.PV.StorageClass,
 			AccessModes: []v1.PersistentVolumeAccessMode{
 				v1.ReadWriteOnce,
 			},
@@ -266,6 +265,9 @@ func NewPVC(m *etcdutil.Member, cs api.ClusterSpec, clusterName, namespace strin
 		},
 	}
 
+	if len(cs.Pod.PV.StorageClass) != 0 {
+		pvc.Spec.StorageClassName = &cs.Pod.PV.StorageClass
+	}
 	addOwnerRefToObject(pvc.GetObjectMeta(), owner)
 
 	return pvc
