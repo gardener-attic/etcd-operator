@@ -74,7 +74,7 @@ type PVSource struct {
 	// This enables the user to have fine-grained control over how persistent
 	// volumes are created since it uses the existing StorageClass mechanism in
 	// Kubernetes.
-	StorageClass string `json:"storageClass"`
+	StorageClass string `json:"storageClass,omitempty"`
 }
 
 type ClusterSpec struct {
