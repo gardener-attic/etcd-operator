@@ -57,7 +57,7 @@ func NewFromAuthOpt(container, region, prefix string, ao gophercloud.AuthOptions
 	}
 	err = openstack.Authenticate(provider, ao)
 	if err != nil {
-		return nil, fmt.Errorf("new Openstack client creation failed: %v", err)
+		return nil, fmt.Errorf("new Openstack client authentication failed : %v", err)
 	}
 
 	client, err := openstack.NewObjectStorageV1(provider, gophercloud.EndpointOpts{

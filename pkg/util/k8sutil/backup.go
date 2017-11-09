@@ -167,9 +167,9 @@ func AttachSwiftToPodSpec(ps *v1.PodSpec, s api.SwiftSource) {
 		LocalObjectReference: v1.LocalObjectReference{Name: s.SwiftSecret},
 		Key:                  api.SwiftPassword,
 	}
-	tokenIDSelector := v1.SecretKeySelector{
+	domainNameSelector := v1.SecretKeySelector{
 		LocalObjectReference: v1.LocalObjectReference{Name: s.SwiftSecret},
-		Key:                  api.SwiftTokenID,
+		Key:                  api.SwiftDomainName,
 	}
 	ps.Containers[0].Env = append(ps.Containers[0].Env, v1.EnvVar{
 		Name:      backupenv.SwiftIdentityEndpoint,
@@ -184,8 +184,8 @@ func AttachSwiftToPodSpec(ps *v1.PodSpec, s api.SwiftSource) {
 		Name:      backupenv.SwiftPassword,
 		ValueFrom: &v1.EnvVarSource{SecretKeyRef: &passwordSelector},
 	}, v1.EnvVar{
-		Name:      backupenv.SwiftTokenID,
-		ValueFrom: &v1.EnvVarSource{SecretKeyRef: &tokenIDSelector},
+		Name:      backupenv.SwiftDomainName,
+		ValueFrom: &v1.EnvVarSource{SecretKeyRef: &domainNameSelector},
 	}, v1.EnvVar{
 		Name:  backupenv.SwiftContainer,
 		Value: s.SwiftContainer,

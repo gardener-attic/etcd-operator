@@ -17,6 +17,8 @@ package backupstorage
 import (
 	"path"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gophercloud/gophercloud"
 
 	api "github.com/coreos/etcd-operator/pkg/apis/etcd/v1beta2"
@@ -33,6 +35,8 @@ type swift struct {
 	kubecli      kubernetes.Interface
 	swiftCli     *backupswift.Swift
 }
+
+var logger logrus.Logger
 
 // NewSwiftStorage returns a new Swift Storage implementation using the given kubecli, cluster name, namespace and backup policy
 func NewSwiftStorage(kubecli kubernetes.Interface, clusterName, ns string, p api.BackupPolicy) (Storage, error) {
@@ -69,7 +73,7 @@ func setupSwiftCreds(kubecli kubernetes.Interface, ns, secret string) (gopherclo
 		TenantID:         string(se.Data[api.SwiftTenantID]),
 		Username:         string(se.Data[api.SwiftUsername]),
 		Password:         string(se.Data[api.SwiftPassword]),
-		TokenID:          string(se.Data[api.SwiftTokenID]),
+		DomainName:       string(se.Data[api.SwiftDomainName]),
 	}
 	return ao, err
 }
