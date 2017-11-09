@@ -28,5 +28,5 @@ const (
 	SwiftTenantID         = "OS_TENANT_ID"
 	SwiftUsername         = "OS_USERNAME"
 	SwiftPassword         = "OS_PASSWORD"
-	SwiftTokenID          = "OS_TOKEN"
+	SwiftDomainName       = "OS_DOMAIN_NAME"
 )

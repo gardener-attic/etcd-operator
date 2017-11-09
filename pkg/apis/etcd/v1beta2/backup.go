@@ -37,7 +37,7 @@ const (
 	SwiftTenantID         = "tenantID"
 	SwiftUsername         = "username"
 	SwiftPassword         = "password"
-	SwiftTokenID          = "tokenID"
+	SwiftDomainName       = "domainName"
 )
 
 var (
