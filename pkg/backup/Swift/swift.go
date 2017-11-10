@@ -45,6 +45,7 @@ func New(container, region, prefix string) (*Swift, error) {
 }
 
 func NewFromAuthOpt(container, region, prefix string, ao gophercloud.AuthOptions) (*Swift, error) {
+	ao.AllowReauth = true
 	provider, err := openstack.NewClient(ao.IdentityEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("new openstack client creation failed: %v", err)
@@ -115,8 +116,9 @@ func (s *Swift) list(prefix string) (int64, []string, error) {
 		// Get a slice of objects.Object structs
 		objectList, err := objects.ExtractInfo(page)
 		for _, object := range objectList {
+			k := (object.Name)[len(fmt.Sprintf("%s/", prefix)):]
 			size += object.Bytes
-			keys = append(keys, object.Name)
+			keys = append(keys, k)
 		}
 		if err != nil {
 			return false, err
