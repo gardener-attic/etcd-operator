@@ -5,6 +5,7 @@ In etcd operator, we provide the following options to save cluster backups to:
 - Persistent Volume (PV) with custom StorageClasses
 - S3 bucket on AWS
 - Azure Blob Storage (ABS) container
+- OpenStack Swift Container
 
 This docs talks about how to configure etcd operator to use these backup options.
 
@@ -144,4 +145,58 @@ spec:
       absSecret: abs-credentials
 ```
 
+## OpenStack Swift Container
+The Swift backup policy is configured in a cluster's spec.  See [spec_examples.md](spec_examples.md#three-member-cluster-with-swift-backup) for an example.
+
+### Prerequisites
+
+  * A container will need to be created in Swift. Here we name the container `etcd-backups`.
+
+    ```
+    $ openstack container create <container-name>
+    ```
+
+  * A Kubernetes secret will need to be created.
+
+      An example of the secret manifest should look like:
+      ```
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: openstack-swift-credentials
+      type: Opaque
+      data:
+        identityEndpoint: <openstack-identity-auth-URL>
+        domainName: <openstack-domain-name>
+        username: <swift-user-name>
+        password: <swift-password>
+        tenantID: <openstack-project-id>
+      ```
+
+      To create the secret from the secret manifest:
+      ```
+      $ kubectl -n <namespace> create -f openstack-swift-credentials.yaml
+      ```
+
+What we have:
+- A secret "openstack-swift-credentials"
+- An openstack swift container "etcd_backups"
+
+### Cluster configuration
+
+The following fields need to be set under the cluster spec's `spec.backup.swift` field:
+- `swiftContainer`: The name of the openstack swift container to store backups in.
+- `swiftSecret`: The secret object name (as created above.)
+- `swiftRegion`: The name of the region in which openstack swift is deployed e.g. "eu-de-1"
+
+An example cluster with specific Swift configurations then looks like:
+```
+spec:
+  backup:
+    storageType: "Swift"
+    swift:
+      swiftContainer: etcd-backups
+      swiftSecret: openstack-swift-credentials
+      swiftRegion: <swift-region>
+```
 
