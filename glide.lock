@@ -1,5 +1,5 @@
-hash: 40e734218f16881c0236eb6ef3ad345e96391781382c52d1273160d7de4ec36c
-updated: 2017-11-02T16:15:25.595088+05:30
+hash: 6722c07d08141ac9999979bb0bc79a3d731f9678bd4cfd660502850ffa9c9fd1
+updated: 2017-11-21T17:38:59.602287+05:30
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -48,7 +48,7 @@ imports:
   - autorest/azure
   - autorest/date
 - name: github.com/beorn7/perks
-  version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
+  version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
   subpackages:
   - quantile
 - name: github.com/coreos/etcd
@@ -94,7 +94,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
-  version: f280b3ba517bf5fc98922624f21fb0e7a92adaec
+  version: c787282c39ac1fc618827141a1f762240def08a3
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
@@ -191,7 +191,7 @@ imports:
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
-  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+  version: 6f3806018612930941127f2a7c6c453ba2c527d2
   subpackages:
   - go
 - name: github.com/prometheus/common
@@ -256,7 +256,7 @@ imports:
   - unicode/norm
   - width
 - name: golang.org/x/time
-  version: 6dc17368e09b0e8634d71cac8168d853e869a0c7
+  version: c06e80d9300e4443158a03817b8a8cb37d230320
   subpackages:
   - rate
 - name: google.golang.org/appengine
