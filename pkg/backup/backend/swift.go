@@ -25,23 +25,21 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-/*const (
-	tmpDir              = "/tmp"
-	tmpBackupFilePrefix = "etcd-backup-"
-)*/
-
 // ensure swiftBackend satisfies backend interface.
 var _ Backend = &swiftBackend{}
 
-// swiftBackend is AWS Swift backend.
+// swiftBackend is Openstack Swift backend.
 type swiftBackend struct {
 	swift *swift.Swift
 }
 
+//NewSwiftBackend returns the newly created Backend object for swift.
 func NewSwiftBackend(swift *swift.Swift) Backend {
 	return &swiftBackend{swift}
 }
 
+// Save saves the backup on swift container from the given reader with given etcd version and revision.
+// It returns the size of the snapshot saved.
 func (sb *swiftBackend) Save(version string, snapRev int64, rc io.Reader) (int64, error) {
 	// swift put is atomic, so let's go ahead and put the key directly.
 	key := util.MakeBackupName(version, snapRev)
@@ -57,8 +55,12 @@ func (sb *swiftBackend) Save(version string, snapRev int64, rc io.Reader) (int64
 	return n, nil
 }
 
+// getObjectSize returns the size of the backup with specfied <key>.
 func (sb *swiftBackend) getObjectSize(key string) (int64, error) {
 	rc, err := sb.Open(key)
+	if err != nil {
+		return -1, err
+	}
 
 	b, err := ioutil.ReadAll(rc)
 	if err != nil {
@@ -69,6 +71,8 @@ func (sb *swiftBackend) getObjectSize(key string) (int64, error) {
 	return int64(len(b)), rc.Close()
 }
 
+// GetLatest gets latest backup's name.
+// If no backup is available, returns empty string name.
 func (sb *swiftBackend) GetLatest() (string, error) {
 	keys, err := sb.swift.List()
 	if err != nil {
@@ -78,10 +82,12 @@ func (sb *swiftBackend) GetLatest() (string, error) {
 	return util.GetLatestBackupName(keys), nil
 }
 
+// Open opens a backup file for reading
 func (sb *swiftBackend) Open(name string) (io.ReadCloser, error) {
 	return sb.swift.Get(name)
 }
 
+// Purge purges backup files when backups are greater than maxBackupFiles.
 func (sb *swiftBackend) Purge(maxBackupFiles int) error {
 	names, err := sb.swift.List()
 	if err != nil {
@@ -100,6 +106,7 @@ func (sb *swiftBackend) Purge(maxBackupFiles int) error {
 	return nil
 }
 
+// Total returns the total number of available backups.
 func (sb *swiftBackend) Total() (int, error) {
 	names, err := sb.swift.List()
 	if err != nil {
@@ -108,6 +115,7 @@ func (sb *swiftBackend) Total() (int, error) {
 	return len(util.FilterAndSortBackups(names)), nil
 }
 
+// TotalSize returns the total size of the backups.
 func (sb *swiftBackend) TotalSize() (int64, error) {
 	return sb.swift.TotalSize()
 }

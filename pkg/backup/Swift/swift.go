@@ -34,8 +34,9 @@ type Swift struct {
 	client    *gophercloud.ServiceClient
 }
 
-// New returns a Swift translator from default environment config.
-// for setting up credentials.
+// New returns a Swift object for given container fetching the credentails from environment variables
+// Please refer https://github.com/gophercloud/gophercloud/blob/db5f840b1d1a595280d643defc09ce277996959e/openstack/auth_env.go#L27
+// for environment variables.
 func New(container, region, prefix string) (*Swift, error) {
 	opts, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
@@ -44,6 +45,7 @@ func New(container, region, prefix string) (*Swift, error) {
 	return NewFromAuthOpt(container, region, prefix, opts)
 }
 
+// NewFromAuthOpt returns a new Swift object for a given container using credentials passed in authOptions <ao>.
 func NewFromAuthOpt(container, region, prefix string, ao gophercloud.AuthOptions) (*Swift, error) {
 	ao.AllowReauth = true
 	provider, err := openstack.NewClient(ao.IdentityEndpoint)
@@ -67,10 +69,11 @@ func NewFromAuthOpt(container, region, prefix string, ao gophercloud.AuthOptions
 	if err != nil {
 		return nil, fmt.Errorf("create object storage client failed: %v", err)
 	}
-	return NewFromClient(container, prefix, client), nil
+	return newFromClient(container, prefix, client), nil
 }
 
-func NewFromClient(container, prefix string, cli *gophercloud.ServiceClient) *Swift {
+// newFromClient returns a new Swift object for a given container using provided serviceClient <cli>.
+func newFromClient(container, prefix string, cli *gophercloud.ServiceClient) *Swift {
 	return &Swift{
 		container: container,
 		prefix:    prefix,
@@ -78,6 +81,7 @@ func NewFromClient(container, prefix string, cli *gophercloud.ServiceClient) *Sw
 	}
 }
 
+// Put stores the object content from <rs> at <key> in swift container.
 func (s *Swift) Put(key string, rs io.Reader) error {
 	opts := objects.CreateOpts{
 		Content: rs,
@@ -86,21 +90,26 @@ func (s *Swift) Put(key string, rs io.Reader) error {
 	return res.Err
 }
 
+// Get reads the content of object identified by <key> in swift container.
 func (s *Swift) Get(key string) (io.ReadCloser, error) {
 	resp := objects.Download(s.client, s.container, path.Join(s.prefix, key), nil)
 	return resp.Body, resp.Err
 }
 
+// Delete deletes the object at <key> in swift container.
 func (s *Swift) Delete(key string) error {
 	result := objects.Delete(s.client, s.container, path.Join(s.prefix, key), nil)
 	return result.Err
 }
 
+//List fetches the list of object keys in swift container.
 func (s *Swift) List() ([]string, error) {
 	_, l, err := s.list(s.prefix)
 	return l, err
 }
 
+// list fetches the list of object keys with specified <prefix> in swift container.
+// It also returns the total size of listed objects.
 func (s *Swift) list(prefix string) (int64, []string, error) {
 	keys := []string{}
 	var size int64
@@ -113,7 +122,6 @@ func (s *Swift) list(prefix string) (int64, []string, error) {
 	// Define an anonymous function to be executed on each page's iteration
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 
-		// Get a slice of objects.Object structs
 		objectList, err := objects.ExtractInfo(page)
 		for _, object := range objectList {
 			k := (object.Name)[len(fmt.Sprintf("%s/", prefix)):]
@@ -131,11 +139,13 @@ func (s *Swift) list(prefix string) (int64, []string, error) {
 	return size, keys, nil
 }
 
+// TotalSize returns the sum of size of objects in swift container.
 func (s *Swift) TotalSize() (int64, error) {
 	size, _, err := s.list(s.prefix)
 	return size, err
 }
 
+// CopyPrefix copies the objects from specified <prefix> to prefix set in swift object.
 func (s *Swift) CopyPrefix(from string) error {
 	_, keys, err := s.list(from)
 	if err != nil {
