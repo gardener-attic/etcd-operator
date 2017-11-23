@@ -38,7 +38,7 @@ type swift struct {
 
 var logger logrus.Logger
 
-// NewSwiftStorage returns a new Swift Storage implementation using the given kubecli, cluster name, namespace and backup policy
+// NewSwiftStorage returns a new Swift Storage implementation using the given kubecli, cluster name, namespace and backup policy.
 func NewSwiftStorage(kubecli kubernetes.Interface, clusterName, ns string, p api.BackupPolicy) (Storage, error) {
 	prefix := path.Join(ns, clusterName)
 
