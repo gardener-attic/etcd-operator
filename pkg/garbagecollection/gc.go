@@ -85,6 +85,9 @@ func (gc *GC) collectResources(option metav1.ListOptions, runningSet map[types.U
 	if err := gc.collectDeployment(option, runningSet); err != nil {
 		gc.logger.Errorf("gc deployments failed: %v", err)
 	}
+	if err := gc.collectPVC(option, runningSet); err != nil {
+		gc.logger.Errorf("gc pvcs failed: %v", err)
+	}
 }
 
 func (gc *GC) collectPods(option metav1.ListOptions, runningSet map[types.UID]bool) error {
@@ -156,5 +159,29 @@ func (gc *GC) collectDeployment(option metav1.ListOptions, runningSet map[types.
 		}
 	}
 
+	return nil
+}
+
+func (gc *GC) collectPVC(option metav1.ListOptions, runningSet map[types.UID]bool) error {
+	pvcs, err := gc.kubecli.Core().PersistentVolumeClaims(gc.ns).List(option)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range pvcs.Items {
+		if len(p.OwnerReferences) == 0 {
+			gc.logger.Warningf("failed to GC pvc (%s): no owner", p.GetName())
+			continue
+		}
+		if !runningSet[p.OwnerReferences[0].UID] {
+			err = gc.kubecli.Core().PersistentVolumeClaims(gc.ns).Delete(p.GetName(), k8sutil.CascadeDeleteOptions(0))
+			if err != nil {
+				if !k8sutil.IsKubernetesResourceNotFoundError(err) {
+					return err
+				}
+			}
+			gc.logger.Infof("deleted pvc (%s)", p.GetName())
+		}
+	}
 	return nil
 }
