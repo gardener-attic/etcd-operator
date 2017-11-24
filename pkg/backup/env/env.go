@@ -15,11 +15,18 @@
 package env
 
 const (
-	ClusterSpec       = "CLUSTER_SPEC"
-	BackupSpec        = "BACKUP_SPEC"
-	AWSS3Bucket       = "AWS_S3_BUCKET"
-	AWSConfig         = "AWS_CONFIG_FILE"
-	ABSContainer      = "AZURE_STORAGE_CONTAINER"
-	ABSStorageAccount = "AZURE_STORAGE_ACCOUNT"
-	ABSStorageKey     = "AZURE_STORAGE_KEY"
+	ClusterSpec           = "CLUSTER_SPEC"
+	BackupSpec            = "BACKUP_SPEC"
+	AWSS3Bucket           = "AWS_S3_BUCKET"
+	AWSConfig             = "AWS_CONFIG_FILE"
+	ABSContainer          = "AZURE_STORAGE_CONTAINER"
+	ABSStorageAccount     = "AZURE_STORAGE_ACCOUNT"
+	ABSStorageKey         = "AZURE_STORAGE_KEY"
+	SwiftContainer        = "OS_SWIFT_CONTAINER"
+	SwiftRegion           = "OS_REGION"
+	SwiftIdentityEndpoint = "OS_AUTH_URL"
+	SwiftTenantID         = "OS_TENANT_ID"
+	SwiftUsername         = "OS_USERNAME"
+	SwiftPassword         = "OS_PASSWORD"
+	SwiftDomainName       = "OS_DOMAIN_NAME"
 )

@@ -189,3 +189,18 @@ spec:
 ### TLS
 
 See [cluster TLS docs](./cluster_tls.md).
+
+### Three member cluster with Swift backup
+
+```yaml
+spec:
+  size: 3
+  backup:
+    backupIntervalInSecond: 1800
+    maxBackups: 5
+    storageType: "Swift"
+    swift:
+      swiftContainer: <swift-container-name>
+      swiftSecret: <swift-secret-name>
+      swiftRegion: <swift-region-name>
+```

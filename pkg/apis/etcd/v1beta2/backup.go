@@ -23,6 +23,7 @@ const (
 	BackupStorageTypePersistentVolume = "PersistentVolume"
 	BackupStorageTypeS3               = "S3"
 	BackupStorageTypeABS              = "ABS"
+	BackupStorageTypeSwift            = "Swift"
 
 	AWSSecretCredentialsFileName = "credentials"
 	AWSSecretConfigFileName      = "config"
@@ -31,6 +32,12 @@ const (
 	ABSStorageAccount = "storage-account"
 	// ABSStorageKey defines the key for the Azure Storage Key value in the ABS Kubernetes secret
 	ABSStorageKey = "storage-key"
+
+	SwiftIdentityEndpoint = "identityEndpoint"
+	SwiftTenantID         = "tenantID"
+	SwiftUsername         = "username"
+	SwiftPassword         = "password"
+	SwiftDomainName       = "domainName"
 )
 
 var (
@@ -87,6 +94,8 @@ type StorageSource struct {
 	S3 *S3Source `json:"s3,omitempty"`
 	// ABS represents an Azure Blob Storage resource for storing etcd backups
 	ABS *ABSSource `json:"abs,omitempty"`
+	// Swift represents an Openstack Swift Object Storage resource for storing etcd backups
+	Swift *SwiftSource `json:"swift,omitempty"`
 }
 
 // TODO: support per cluster S3 Source configuration.
@@ -121,6 +130,24 @@ type ABSSource struct {
 	// 'storage-account' holding the Azure Storage account name
 	// 'storage-key' holding the Azure Storage account key
 	ABSSecret string `json:"absSecret,omitempty"`
+}
+
+// SwiftSource represents an Openstack Swift Object Storage  backup storage source
+type SwiftSource struct {
+	// SwiftContainer is the name of the Swift container to store backups in.
+	SwiftContainer string `json:"swiftContainer,omitempty"`
+
+	// SwiftSecret is the name of the secret object that stores the Openstack credentials.
+	//
+	// Within the secret object, the following fields MUST be provided:
+	// 'identityEndpoint' holding a valid Keystone identity URL
+	// 'tenantID' holding the tenantID
+	// 'username' holding user name
+	// 'password' holding user password
+	SwiftSecret string `json:"swiftSecret,omitempty"`
+
+	// SwiftRegion is the name of region of openstack deployment.
+	SwiftRegion string `json:"swiftRegion,omitempty"`
 }
 
 type BackupServiceStatus struct {
