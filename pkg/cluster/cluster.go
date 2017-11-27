@@ -301,7 +301,7 @@ func (c *Cluster) run() {
 			pvcs, err := c.pollPVCs()
 			if err != nil {
 				c.logger.Errorf("failed to poll pvcs: %v", err)
-				reconcileFailed.WithLabelValues("failed to poll vcs").Inc()
+				reconcileFailed.WithLabelValues("failed to poll pvcs").Inc()
 				continue
 			}
 
