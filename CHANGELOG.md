@@ -1,8 +1,27 @@
-## [Unreleased]
+## [sap-v0.6.3]
 
-### Added
+### Added Feature
 
-- Add `ServiceName` and `ClientPort` into ClusterStatus.
+- Support for backup on OpenStack swift container
+
+### Changed
+
+### Removed
+
+### Fixed
+
+- Increased wait timeout for PVC bound in case of backup on PV.
+- Garbage collect PVC create for etcd data storage.
+
+### Deprecated
+
+### Security
+
+## [sap-v0.6.1]
+
+### Added Feature
+
+- Support PVC for etcd data directory
 
 ### Changed
 
@@ -13,7 +32,6 @@
 ### Deprecated
 
 ### Security
-
 
 ## [Release 0.6.1]
 
