@@ -102,6 +102,8 @@ func (b backupClient) Exist(ctx context.Context, v string) (bool, error) {
 
 	if resp.StatusCode == http.StatusOK {
 		return true, nil
+	} else if resp.StatusCode == http.StatusNotFound {
+		return false, nil
 	}
 
 	var errmsg string
