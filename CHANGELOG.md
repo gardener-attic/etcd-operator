@@ -12,6 +12,7 @@
 
 - Increased wait timeout for PVC bound in case of backup on PV.
 - Garbage collect PVC create for etcd data storage.
+- Restart etcd without recovery in case of backup policy specified but etcd fails before first backup.
 
 ### Deprecated
 
