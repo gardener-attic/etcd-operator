@@ -243,46 +243,46 @@ func (c *Cluster) removeMember(toRemove *etcdutil.Member) error {
 }
 
 func (c *Cluster) disasterRecovery(left etcdutil.MemberSet) error {
+	var err error
 	c.status.SetRecoveringCondition()
 
 	if c.cluster.Spec.SelfHosted != nil {
 		return errors.New("self-hosted cluster cannot be recovered from disaster")
 	}
 
-	if c.cluster.Spec.Backup == nil {
-		return newFatalError("fail to do disaster recovery: no backup policy has been defined")
-	}
-
 	backupNow := false
-	if len(left) > 0 {
+	if c.cluster.Spec.Backup != nil && len(left) > 0 {
 		c.logger.Infof("pods are still running (%v). Will try to make a latest backup from one of them.", left)
-		err := c.bm.requestBackup()
+		err = c.bm.requestBackup()
 		if err != nil {
 			c.logger.Errorln(err)
 		} else {
 			backupNow = true
 		}
 	}
+	exist := false
 	if backupNow {
 		c.logger.Info("made a latest backup")
-	} else {
+	} else if c.cluster.Spec.Backup != nil {
 		// We don't return error if backupnow failed. Instead, we ask if there is previous backup.
 		// If so, we can still continue. Otherwise, it's fatal error.
-		exist, err := c.bm.checkBackupExist(c.cluster.Spec.Version)
+		exist, err = c.bm.checkBackupExist(c.cluster.Spec.Version)
 		if err != nil {
 			c.logger.Errorln(err)
 			return err
 		}
-		if !exist {
-			return newFatalError("no backup exist for disaster recovery")
-		}
 	}
-
 	for _, m := range left {
-		err := c.removePod(m.Name)
+		err = c.removePod(m.Name)
 		if err != nil {
 			return err
 		}
+	}
+	if !exist {
+		c.logger.Warnf("no backup exist for disaster recovery")
+
+		c.logger.Warnf("Recovering by restarting cluster.")
+		return c.bootstrap()
 	}
 	return c.recover()
 }
