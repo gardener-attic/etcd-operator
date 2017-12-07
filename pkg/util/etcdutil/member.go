@@ -34,6 +34,7 @@ type Member struct {
 
 	SecurePeer   bool
 	SecureClient bool
+	Volume       string
 }
 
 func (m *Member) Addr() string {
