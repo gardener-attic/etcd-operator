@@ -52,6 +52,13 @@ func (c *Cluster) updateMembers(known etcdutil.MemberSet) error {
 			SecurePeer:   c.isSecurePeer(),
 			SecureClient: c.isSecureClient(),
 		}
+
+		if c.IsPodPVEnabled() {
+			members[name].Volume = known[name].Volume
+			c.volumes[known[name].Volume].IsAttached = true
+			c.volumes[known[name].Volume].Member = name
+		}
+
 	}
 	c.members = members
 	return nil
@@ -71,6 +78,10 @@ func podsToMemberSet(pods []*v1.Pod, sc bool) etcdutil.MemberSet {
 	members := etcdutil.MemberSet{}
 	for _, pod := range pods {
 		m := &etcdutil.Member{Name: pod.Name, Namespace: pod.Namespace, SecureClient: sc}
+		if len(pod.Spec.Volumes) > 0 && pod.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim != nil {
+			pvc := pod.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim
+			m.Volume = pvc.ClaimName
+		}
 		members.Add(m)
 	}
 	return members
