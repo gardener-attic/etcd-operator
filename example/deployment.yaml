@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
       - name: etcd-operator
-        image: quay.io/coreos/etcd-operator:v0.6.1
+        image: georgekk/etcd-operator-gcs:v1.3
         env:
         - name: MY_POD_NAMESPACE
           valueFrom:
@@ -21,3 +21,4 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        imagePullPolicy: Always	

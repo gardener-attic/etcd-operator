@@ -72,6 +72,7 @@ func (vs VolumeSet) String() string {
 func (vs VolumeSet) PickOneAvailable() *Volume {
 	for _, v := range vs {
 		if !v.IsAttached {
+			fmt.Printf("Volume getting attached: %v", v)
 			return v
 		}
 	}
@@ -87,7 +88,7 @@ func (vs VolumeSet) Remove(name string) {
 	delete(vs, name)
 }
 
-func CreateVolumeName(clusterName string, volume int) string {
+func createVolumeName(clusterName string, volume int) string {
 	return fmt.Sprintf("%s-%04d", clusterName, volume)
 }
 
@@ -119,12 +120,8 @@ func pvcsToVolumeSet(pvcs []*v1.PersistentVolumeClaim) VolumeSet {
 	volumes := VolumeSet{}
 
 	for _, pvc := range pvcs {
-		name, err := GetVolumeNameFromPVC(pvc.Name)
-		if err != nil {
-			continue
-		}
 		v := &Volume{
-			Name:       name,
+			Name:       pvc.Name,
 			Namespace:  pvc.Namespace,
 			IsAttached: false,
 		}
@@ -135,10 +132,14 @@ func pvcsToVolumeSet(pvcs []*v1.PersistentVolumeClaim) VolumeSet {
 
 func (c *Cluster) updateVolumes(known VolumeSet) {
 
-	volumes := VolumeSet{}
 	for _, v := range known {
-
-		ct, err := GetCounterFromVolumeName(v.Name)
+		c.logger.Infof("PVC name: %v", v.Name)
+		name, err := GetVolumeNameFromPVC(v.Name)
+		if err != nil {
+			//invalid volume name
+			continue
+		}
+		ct, err := GetCounterFromVolumeName(name)
 		if err != nil {
 			//invalid volume name
 			continue
@@ -147,13 +148,8 @@ func (c *Cluster) updateVolumes(known VolumeSet) {
 			c.volumeCounter = ct + 1
 		}
 
-		volumes[v.Name] = &Volume{
-			Name:       v.Name,
-			Namespace:  c.cluster.Namespace,
-			IsAttached: v.IsAttached,
-		}
+		c.volumes[v.Name] = v
 	}
-	c.volumes = volumes
 
 	return
 }
