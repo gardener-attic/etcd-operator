@@ -189,17 +189,20 @@ func (c *Cluster) addOneMember() error {
 	}
 	newMember.ID = resp.Member.ID
 	c.members.Add(newMember)
+	c.logger.Infof("Adding member %v to cluster.", newMember.Name)
+
 	var v *Volume
 	if c.IsPodPVEnabled() {
 		v = c.volumes.PickOneAvailable()
 		if v == nil {
+			volumeName := fmt.Sprintf("%s-pvc", createVolumeName(c.cluster.Name, c.volumeCounter))
 			v = &Volume{
-				Name:       CreateVolumeName(c.cluster.Name, c.volumeCounter),
+				Name:       volumeName,
 				Namespace:  c.cluster.Namespace,
 				IsAttached: false,
 			}
-			if err := c.createPVC(v.etcdPVCName()); err != nil {
-				return fmt.Errorf("failed to create persistent volume claim for member's pod (%s): %v", v.etcdPVCName(), err)
+			if err := c.createPVC(v.Name); err != nil {
+				return fmt.Errorf("failed to create persistent volume claim for member's pod (%s): %v", v.Name, err)
 			}
 			c.volumeCounter++
 			c.volumes.Add(v)
@@ -214,6 +217,7 @@ func (c *Cluster) addOneMember() error {
 		v.Member = newMember.Name
 		newMember.Volume = v.Name
 	}
+	c.members.Add(newMember)
 	c.logger.Infof("added member (%s)", newMember.Name)
 	_, err = c.eventsCli.Create(k8sutil.NewMemberAddEvent(newMember.Name, c.cluster))
 	if err != nil {
@@ -282,9 +286,14 @@ func (c *Cluster) removeMember(toRemove *etcdutil.Member, deleteVolume bool) err
 	}
 
 	//RETHINK removeVolume
-	if c.IsPodPVEnabled() && deleteVolume {
-		c.volumes.Remove(toRemove.Volume)
-		c.removePVC(toRemove.Volume)
+	if c.IsPodPVEnabled() {
+		if deleteVolume {
+			c.volumes.Remove(toRemove.Volume)
+			c.removePVC(toRemove.Volume)
+		} else {
+			c.volumes[toRemove.Volume].IsAttached = false
+			c.volumes[toRemove.Volume].Member = ""
+		}
 	}
 
 	c.logger.Infof("removed member (%v) with ID (%d)", toRemove.Name, toRemove.ID)

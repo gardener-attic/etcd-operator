@@ -115,6 +115,8 @@ func New(config Config, cl *api.EtcdCluster) *Cluster {
 		status:      *(cl.Status.DeepCopy()),
 		gc:          garbagecollection.New(config.KubeCli, cl.Namespace),
 		eventsCli:   config.KubeCli.Core().Events(cl.Namespace),
+		members:     etcdutil.NewMemberSet(),
+		volumes:     NewVolumeSet(),
 	}
 
 	go func() {
@@ -335,12 +337,14 @@ func (c *Cluster) run() {
 					c.volumes[m.Volume].IsAttached = false
 					c.volumes[m.Volume].Member = ""
 					m.Volume = ""
+					c.members.Remove(m.Name)
 				}
-
 				if c.volumes.PickOneAvailable() != nil {
+					c.logger.Infof("Running : %v", running)
 					c.bootstrap()
 					break
 				}
+
 				c.logger.Warningf("all etcd pods are dead. Trying to recover from a previous backup")
 				rerr = c.disasterRecovery(nil)
 				if rerr != nil {
@@ -351,6 +355,7 @@ func (c *Cluster) run() {
 			}
 
 			rerr = c.reconcile(running, pvcs)
+
 			if rerr != nil {
 				c.logger.Errorf("failed to reconcile: %v", rerr)
 				break
@@ -442,39 +447,38 @@ func (c *Cluster) startSeedMember(recoverFromBackup bool) error {
 		SecurePeer:   c.isSecurePeer(),
 		SecureClient: c.isSecureClient(),
 	}
-	ms := etcdutil.NewMemberSet(m)
 	var v *Volume
-	vs := c.volumes
 	if c.IsPodPVEnabled() {
-		if len(vs) == 0 {
-			vs = VolumeSet{}
-		}
-		v = vs.PickOneAvailable()
+		v = c.volumes.PickOneAvailable()
 		if v == nil {
+			volumeName := fmt.Sprintf("%s-pvc", createVolumeName(c.cluster.Name, c.volumeCounter))
 			v = &Volume{
-				Name:       CreateVolumeName(c.cluster.Name, c.volumeCounter),
+				Name:       volumeName,
 				Namespace:  c.cluster.Namespace,
 				IsAttached: false,
 			}
-			if err := c.createPVC(v.etcdPVCName()); err != nil {
+			if err := c.createPVC(v.Name); err != nil {
 				return fmt.Errorf("failed to create persistent volume claim for seed member (%s): %v", m.Name, err)
 			}
+			c.volumeCounter++
+			c.volumes.Add(v)
 		}
 		//RETHINK
 
 	}
-	if err := c.createPod(ms, m, "new", recoverFromBackup, v); err != nil {
+	c.members.Add(m)
+	if err := c.createPod(c.members, m, "new", recoverFromBackup, v); err != nil {
 		return fmt.Errorf("failed to create seed member (%s): %v", m.Name, err)
 	}
 	if c.IsPodPVEnabled() {
-		c.volumeCounter++
 		v.IsAttached = true
 		v.Member = m.Name
-		c.volumes = vs
 		m.Volume = v.Name
+		c.logger.Infof("Volume to be added: %v", v.Name)
+		c.volumes.Add(v)
 	}
 	c.memberCounter++
-	c.members = ms
+
 	c.logger.Infof("cluster created with seed member (%s)", m.Name)
 	_, err := c.eventsCli.Create(k8sutil.NewMemberAddEvent(m.Name, c.cluster))
 	if err != nil {
@@ -553,7 +557,7 @@ func (c *Cluster) createPod(members etcdutil.MemberSet, m *etcdutil.Member, stat
 	} else {
 		pod = k8sutil.NewEtcdPod(m, members.PeerURLPairs(), c.cluster.Name, state, "", c.cluster.Spec, c.cluster.AsOwner())
 	}
-	k8sutil.AddEtcdVolumeToPod(pod, m, v.etcdPVCName())
+	k8sutil.AddEtcdVolumeToPod(pod, m, v.Name)
 	_, err := c.config.KubeCli.Core().Pods(c.cluster.Namespace).Create(pod)
 	return err
 }
@@ -620,8 +624,7 @@ func (c *Cluster) pollPVCs() (pvcs []*v1.PersistentVolumeClaim, err error) {
 		return nil, fmt.Errorf("failed to list running pvcs: %v", err)
 	}
 
-	for i := range pvcList.Items {
-		pvc := &pvcList.Items[i]
+	for _, pvc := range pvcList.Items {
 		if len(pvc.OwnerReferences) < 1 {
 			c.logger.Warningf("pollPVCs: ignore pvc %v: no owner", pvc.Name)
 			continue
@@ -631,7 +634,7 @@ func (c *Cluster) pollPVCs() (pvcs []*v1.PersistentVolumeClaim, err error) {
 				pvc.Name, pvc.OwnerReferences[0].UID, c.cluster.UID)
 			continue
 		}
-		pvcs = append(pvcs, pvc)
+		pvcs = append(pvcs, &pvc)
 	}
 
 	return pvcs, nil
