@@ -317,12 +317,12 @@ func (c *Cluster) run() {
 			}
 
 			// On controller restore, we could have "members == nil"
-			if rerr != nil || c.volumes == nil {
+			if rerr != nil || c.volumes.Size() == 0 {
 				c.updateVolumes(pvcsToVolumeSet(pvcs))
 			}
 
 			// On controller restore, we could have "members == nil"
-			if rerr != nil || c.members == nil {
+			if rerr != nil || c.members.Size() == 0 {
 				rerr = c.updateMembers(podsToMemberSet(running, c.isSecureClient()))
 				if rerr != nil {
 					c.logger.Errorf("failed to update members: %v", rerr)
@@ -557,7 +557,11 @@ func (c *Cluster) createPod(members etcdutil.MemberSet, m *etcdutil.Member, stat
 	} else {
 		pod = k8sutil.NewEtcdPod(m, members.PeerURLPairs(), c.cluster.Name, state, "", c.cluster.Spec, c.cluster.AsOwner())
 	}
-	k8sutil.AddEtcdVolumeToPod(pod, m, v.Name)
+	if c.IsPodPVEnabled() {
+		k8sutil.AddEtcdVolumeToPod(pod, m, v.Name)
+	} else {
+		k8sutil.AddEtcdVolumeToPod(pod, m, "")
+	}
 	_, err := c.config.KubeCli.Core().Pods(c.cluster.Namespace).Create(pod)
 	return err
 }
