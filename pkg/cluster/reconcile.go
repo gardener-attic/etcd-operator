@@ -27,6 +27,7 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	"k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // reconcile reconciles cluster current state to desired state specified by spec.
@@ -202,10 +203,13 @@ func (c *Cluster) addOneMember() error {
 				IsAttached: false,
 			}
 			if err := c.createPVC(v.Name); err != nil {
-				return fmt.Errorf("failed to create persistent volume claim for member's pod (%s): %v", v.Name, err)
+				if !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create persistent volume claim for seed member (%s): %v", v.Name, err)
+				}
+			} else {
+				c.volumeCounter++
+				c.volumes.Add(v)
 			}
-			c.volumeCounter++
-			c.volumes.Add(v)
 		}
 	}
 	if err := c.createPod(c.members, newMember, "existing", false, v); err != nil {
