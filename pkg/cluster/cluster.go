@@ -458,10 +458,15 @@ func (c *Cluster) startSeedMember(recoverFromBackup bool) error {
 				IsAttached: false,
 			}
 			if err := c.createPVC(v.Name); err != nil {
-				return fmt.Errorf("failed to create persistent volume claim for seed member (%s): %v", m.Name, err)
+				if !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create persistent volume claim for seed member (%s): %v", v.Name, err)
+				}
+
+			} else {
+				c.volumeCounter++
+				c.volumes.Add(v)
 			}
-			c.volumeCounter++
-			c.volumes.Add(v)
+
 		}
 		//RETHINK
 
