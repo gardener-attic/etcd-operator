@@ -1,0 +1,21 @@
+apiVersion: etcd.database.coreos.com/v1beta2
+kind: EtcdCluster
+metadata:
+  name: etcd-main-aws
+spec:
+  pod:
+    labels:
+      role: main-aws
+    pv:
+      volumeSizeInMB: 8000
+  size: 1
+  version: 3.2.6
+  backup:
+    # short snapshot interval for testing, do not use this in production!
+    backupIntervalInSecond: 30
+    maxBackups: 5
+    storageType: "S3"
+    s3:
+      s3Bucket: xxxxx
+      awsSecret: xxxxxx
+

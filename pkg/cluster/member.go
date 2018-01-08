@@ -27,11 +27,14 @@ import (
 )
 
 func (c *Cluster) updateMembers(known etcdutil.MemberSet) error {
+	if known.Size() == 0 {
+		return nil
+	}
 	resp, err := etcdutil.ListMembers(known.ClientURLs(), c.tlsConfig)
 	if err != nil {
 		return err
 	}
-	members := etcdutil.MemberSet{}
+
 	for _, m := range resp.Members {
 		name, err := getMemberName(m, c.cluster.GetName(), c.cluster.Spec.SelfHosted)
 		if err != nil {
@@ -45,15 +48,22 @@ func (c *Cluster) updateMembers(known etcdutil.MemberSet) error {
 			c.memberCounter = ct + 1
 		}
 
-		members[name] = &etcdutil.Member{
+		c.members[name] = &etcdutil.Member{
 			Name:         name,
 			Namespace:    c.cluster.Namespace,
 			ID:           m.ID,
 			SecurePeer:   c.isSecurePeer(),
 			SecureClient: c.isSecureClient(),
 		}
+
+		if c.IsPodPVEnabled() {
+			volumeName := known[m.Name].Volume
+			c.members[name].Volume = volumeName
+			c.volumes[volumeName].IsAttached = true
+			c.volumes[volumeName].Member = name
+		}
+
 	}
-	c.members = members
 	return nil
 }
 
@@ -71,6 +81,10 @@ func podsToMemberSet(pods []*v1.Pod, sc bool) etcdutil.MemberSet {
 	members := etcdutil.MemberSet{}
 	for _, pod := range pods {
 		m := &etcdutil.Member{Name: pod.Name, Namespace: pod.Namespace, SecureClient: sc}
+		if len(pod.Spec.Volumes) > 1 && pod.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim != nil {
+			pvc := pod.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim
+			m.Volume = pvc.ClaimName
+		}
 		members.Add(m)
 	}
 	return members

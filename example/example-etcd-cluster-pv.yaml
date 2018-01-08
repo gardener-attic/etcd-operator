@@ -1,0 +1,12 @@
+apiVersion: etcd.database.coreos.com/v1beta2
+kind: EtcdCluster
+metadata:
+  name: etcd-main-os
+spec:
+  pod:
+    labels:
+      role: main-os
+    pv:
+      volumeSizeInMB: 8000
+  size: 1
+  version: 3.2.6

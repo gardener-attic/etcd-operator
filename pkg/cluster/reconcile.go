@@ -27,6 +27,7 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	"k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // reconcile reconciles cluster current state to desired state specified by spec.
@@ -42,14 +43,17 @@ func (c *Cluster) reconcile(pods []*v1.Pod, pvcs []*v1.PersistentVolumeClaim) er
 
 	sp := c.cluster.Spec
 	running := podsToMemberSet(pods, c.isSecureClient())
+	//attachedVolumes := podsToVolumeSet(pods)
+	//attached Volumes
 	if !running.IsEqual(c.members) || c.members.Size() != sp.Size {
 		return c.reconcileMembers(running)
 	}
 	c.status.ClearCondition(api.ClusterConditionScaling)
-
-	if err := c.reconcilePVCs(pvcs); err != nil {
-		return err
-	}
+	/*
+		if err := c.reconcilePVCs(pvcs); err != nil {
+			return err
+		}
+	*/
 
 	if needUpgrade(pods, sp) {
 		c.status.UpgradeVersionTo(sp.Version)
@@ -82,6 +86,10 @@ func (c *Cluster) reconcileMembers(running etcdutil.MemberSet) error {
 	if unknownMembers.Size() > 0 {
 		c.logger.Infof("removing unexpected pods: %v", unknownMembers)
 		for _, m := range unknownMembers {
+			//RETHINK remove volumes
+			// This is unexpected pod, probably created manually with ownerReference set to cluster.
+			// So, it is not managed by operator. So, we don't have any idea about its volume, we
+			// wil simple kill the pod and not the volume.
 			if err := c.removePod(m.Name); err != nil {
 				return err
 			}
@@ -93,9 +101,22 @@ func (c *Cluster) reconcileMembers(running etcdutil.MemberSet) error {
 		return c.resize()
 	}
 
+	// Case quoram is lost. Some how the pod god deleted
 	if L.Size() < c.members.Size()/2+1 {
-		c.logger.Infof("Disaster recovery")
-		return c.disasterRecovery(L)
+		//We assume PVC's are still there. So mark PVC available.
+		for _, m := range c.members.Diff(L) {
+			//RETHINK check if its corrupt then delete
+			c.volumes[m.Volume].IsAttached = false
+			c.volumes[m.Volume].Member = ""
+			m.Volume = ""
+		}
+
+		if c.volumes.PickOneAvailable() == nil {
+			c.logger.Infof("Disaster recovery")
+			return c.disasterRecovery(L)
+		} else if L.Size() == 0 {
+			return c.bootstrap()
+		}
 	}
 
 	c.logger.Infof("removing one dead member")
@@ -103,17 +124,21 @@ func (c *Cluster) reconcileMembers(running etcdutil.MemberSet) error {
 	return c.removeDeadMember(c.members.Diff(L).PickOne())
 }
 
+/*
 // reconcilePVCs reconciles PVCs with current cluster members removing old PVCs
 func (c *Cluster) reconcilePVCs(pvcs []*v1.PersistentVolumeClaim) error {
-	oldPVCs := []string{}
+	unattachedPVC := []string{}
 	for _, pvc := range pvcs {
 		memberName := etcdutil.MemberNameFromPVCName(pvc.Name)
 		if _, ok := c.members[memberName]; !ok {
-			oldPVCs = append(oldPVCs, pvc.Name)
+			unattachedPVCs = append(unattachedPVCs, pvc.Name)
 		}
 	}
 
-	for _, oldPVC := range oldPVCs {
+	for _, unattachedPVC := range unattachedPVCs {
+		//mark it as available
+		//ot os not corrupt then avalible PVC
+		//i
 		c.logger.Infof("removing old pvc: %s", oldPVC)
 		if err := c.removePVC(oldPVC); err != nil {
 			return err
@@ -122,6 +147,7 @@ func (c *Cluster) reconcilePVCs(pvcs []*v1.PersistentVolumeClaim) error {
 
 	return nil
 }
+*/
 
 func (c *Cluster) resize() error {
 	if c.members.Size() == c.cluster.Spec.Size {
@@ -135,7 +161,9 @@ func (c *Cluster) resize() error {
 
 		return c.addOneMember()
 	}
-
+	//Remove member with its PVC since it is scale down case. If we not remove PVC then, it might happen that when
+	// we restore to previous revision and then scale up  again, same PVC may get attached to new member and this will create
+	// this will loose the atomic nature of cluster
 	return c.removeOneMember()
 }
 
@@ -162,16 +190,38 @@ func (c *Cluster) addOneMember() error {
 	}
 	newMember.ID = resp.Member.ID
 	c.members.Add(newMember)
+	c.logger.Infof("Adding member %v to cluster.", newMember.Name)
 
+	var v *Volume
 	if c.IsPodPVEnabled() {
-		if err := c.createPVC(newMember); err != nil {
-			return fmt.Errorf("failed to create persistent volume claim for member's pod (%s): %v", newMember.Name, err)
+		v = c.volumes.PickOneAvailable()
+		if v == nil {
+			volumeName := fmt.Sprintf("%s-pvc", createVolumeName(c.cluster.Name, c.volumeCounter))
+			v = &Volume{
+				Name:       volumeName,
+				Namespace:  c.cluster.Namespace,
+				IsAttached: false,
+			}
+			if err := c.createPVC(v.Name); err != nil {
+				if !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create persistent volume claim for seed member (%s): %v", v.Name, err)
+				}
+			} else {
+				c.volumeCounter++
+				c.volumes.Add(v)
+			}
 		}
 	}
-	if err := c.createPod(c.members, newMember, "existing", false); err != nil {
+	if err := c.createPod(c.members, newMember, "existing", false, v); err != nil {
 		return fmt.Errorf("fail to create member's pod (%s): %v", newMember.Name, err)
 	}
 	c.memberCounter++
+	if c.IsPodPVEnabled() {
+		v.IsAttached = true
+		v.Member = newMember.Name
+		newMember.Volume = v.Name
+	}
+	c.members.Add(newMember)
 	c.logger.Infof("added member (%s)", newMember.Name)
 	_, err = c.eventsCli.Create(k8sutil.NewMemberAddEvent(newMember.Name, c.cluster))
 	if err != nil {
@@ -183,7 +233,7 @@ func (c *Cluster) addOneMember() error {
 func (c *Cluster) removeOneMember() error {
 	c.status.SetScalingDownCondition(c.members.Size(), c.cluster.Spec.Size)
 
-	return c.removeMember(c.members.PickOne())
+	return c.removeMember(c.members.PickOne(), true)
 }
 
 func (c *Cluster) removeDeadMember(toRemove *etcdutil.Member) error {
@@ -216,10 +266,10 @@ func (c *Cluster) removeDeadMember(toRemove *etcdutil.Member) error {
 		c.logger.Errorf("failed to create replacing dead member event: %v", err)
 	}
 
-	return c.removeMember(toRemove)
+	return c.removeMember(toRemove, false)
 }
 
-func (c *Cluster) removeMember(toRemove *etcdutil.Member) error {
+func (c *Cluster) removeMember(toRemove *etcdutil.Member, deleteVolume bool) error {
 	err := etcdutil.RemoveMember(c.members.ClientURLs(), c.tlsConfig, toRemove.ID)
 	if err != nil {
 		switch err {
@@ -238,6 +288,18 @@ func (c *Cluster) removeMember(toRemove *etcdutil.Member) error {
 	if err := c.removePod(toRemove.Name); err != nil {
 		return err
 	}
+
+	//RETHINK removeVolume
+	if c.IsPodPVEnabled() {
+		if deleteVolume {
+			c.volumes.Remove(toRemove.Volume)
+			c.removePVC(toRemove.Volume)
+		} else {
+			c.volumes[toRemove.Volume].IsAttached = false
+			c.volumes[toRemove.Volume].Member = ""
+		}
+	}
+
 	c.logger.Infof("removed member (%v) with ID (%d)", toRemove.Name, toRemove.ID)
 	return nil
 }
@@ -272,12 +334,13 @@ func (c *Cluster) disasterRecovery(left etcdutil.MemberSet) error {
 			return err
 		}
 	}
-	for _, m := range left {
+	//TODO: don't remove pod if not corrupted
+	/*for _, m := range left {
 		err = c.removePod(m.Name)
 		if err != nil {
 			return err
 		}
-	}
+	}*/
 	if !exist {
 		c.logger.Warnf("no backup exist for disaster recovery")
 
