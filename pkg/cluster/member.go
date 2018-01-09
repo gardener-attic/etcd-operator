@@ -48,7 +48,7 @@ func (c *Cluster) updateMembers(known etcdutil.MemberSet) error {
 			c.memberCounter = ct + 1
 		}
 
-		c.members[name] = &etcdutil.Member{
+		newMember := &etcdutil.Member{
 			Name:         name,
 			Namespace:    c.cluster.Namespace,
 			ID:           m.ID,
@@ -58,11 +58,11 @@ func (c *Cluster) updateMembers(known etcdutil.MemberSet) error {
 
 		if c.IsPodPVEnabled() {
 			volumeName := known[m.Name].Volume
-			c.members[name].Volume = volumeName
-			c.volumes[volumeName].IsAttached = true
-			c.volumes[volumeName].Member = name
+			if c.volumes[volumeName] != nil {
+				c.attachVolumeToMember(c.volumes[volumeName], newMember)
+			}
 		}
-
+		c.members[name] = newMember
 	}
 	return nil
 }

@@ -301,7 +301,6 @@ func (c *Cluster) run() {
 				reconcileFailed.WithLabelValues("failed to poll pods").Inc()
 				continue
 			}
-
 			if len(pending) > 0 {
 				// Pod startup might take long, e.g. pulling image. It would deterministically become running or succeeded/failed later.
 				c.logger.Infof("skip reconciliation: running (%v), pending (%v)", k8sutil.GetPodNames(running), k8sutil.GetPodNames(pending))
@@ -309,18 +308,16 @@ func (c *Cluster) run() {
 				continue
 			}
 
-			pvcs, err := c.pollPVCs()
-			if err != nil {
-				c.logger.Errorf("failed to poll pvcs: %v", err)
-				reconcileFailed.WithLabelValues("failed to poll pvcs").Inc()
-				continue
-			}
-
-			// On controller restore, we could have "members == nil"
-			if rerr != nil || c.volumes.Size() == 0 {
+			if c.IsPodPVEnabled() {
+				pvcs, err := c.pollPVCs()
+				if err != nil {
+					c.logger.Errorf("failed to poll pvcs: %v", err)
+					reconcileFailed.WithLabelValues("failed to poll pvcs").Inc()
+					continue
+				}
 				c.updateVolumes(pvcsToVolumeSet(pvcs))
+				c.logger.Infof("updated volume counter :%v volumes: %s", c.volumeCounter, c.volumes.String())
 			}
-
 			// On controller restore, we could have "members == nil"
 			if rerr != nil || c.members.Size() == 0 {
 				rerr = c.updateMembers(podsToMemberSet(running, c.isSecureClient()))
@@ -330,31 +327,7 @@ func (c *Cluster) run() {
 				}
 			}
 
-			if len(running) == 0 {
-				//We assume PVC's are still there. So mark PVC available.
-				for _, m := range c.members {
-					//RETHINK check if its corrupt then delete
-					c.volumes[m.Volume].IsAttached = false
-					c.volumes[m.Volume].Member = ""
-					m.Volume = ""
-					c.members.Remove(m.Name)
-				}
-				if c.volumes.PickOneAvailable() != nil {
-					c.logger.Infof("Running : %v", running)
-					c.bootstrap()
-					break
-				}
-
-				c.logger.Warningf("all etcd pods are dead. Trying to recover from a previous backup")
-				rerr = c.disasterRecovery(nil)
-				if rerr != nil {
-					c.logger.Errorf("fail to do disaster recovery: %v", rerr)
-				}
-				// On normal recovery case, we need backoff. On error case, this could be either backoff or leading to cluster delete.
-				break
-			}
-
-			rerr = c.reconcile(running, pvcs)
+			rerr = c.reconcile(running)
 
 			if rerr != nil {
 				c.logger.Errorf("failed to reconcile: %v", rerr)
@@ -441,56 +414,75 @@ func isBackupPolicyEqual(b1, b2 *api.BackupPolicy) bool {
 }
 
 func (c *Cluster) startSeedMember(recoverFromBackup bool) error {
-	m := &etcdutil.Member{
-		Name:         etcdutil.CreateMemberName(c.cluster.Name, c.memberCounter),
-		Namespace:    c.cluster.Namespace,
-		SecurePeer:   c.isSecurePeer(),
-		SecureClient: c.isSecureClient(),
-	}
+	var err error
+	m := c.newMember(c.memberCounter)
+	c.members.Add(m)
 	var v *Volume
 	if c.IsPodPVEnabled() {
-		v = c.volumes.PickOneAvailable()
-		if v == nil {
-			volumeName := fmt.Sprintf("%s-pvc", createVolumeName(c.cluster.Name, c.volumeCounter))
-			v = &Volume{
-				Name:       volumeName,
-				Namespace:  c.cluster.Namespace,
-				IsAttached: false,
-			}
-			if err := c.createPVC(v.Name); err != nil {
-				if !apierrors.IsAlreadyExists(err) {
-					return fmt.Errorf("failed to create persistent volume claim for seed member (%s): %v", v.Name, err)
-				}
-
-			} else {
-				c.volumeCounter++
-				c.volumes.Add(v)
-			}
-
+		v, err = c.prepareNewVolume()
+		if err != nil {
+			return err
 		}
-		//RETHINK
-
 	}
-	c.members.Add(m)
 	if err := c.createPod(c.members, m, "new", recoverFromBackup, v); err != nil {
 		return fmt.Errorf("failed to create seed member (%s): %v", m.Name, err)
 	}
 	if c.IsPodPVEnabled() {
-		v.IsAttached = true
-		v.Member = m.Name
-		m.Volume = v.Name
-		c.logger.Infof("Volume to be added: %v", v.Name)
-		c.volumes.Add(v)
+		c.attachVolumeToMember(v, m)
 	}
+	c.members.Add(m)
 	c.memberCounter++
 
 	c.logger.Infof("cluster created with seed member (%s)", m.Name)
-	_, err := c.eventsCli.Create(k8sutil.NewMemberAddEvent(m.Name, c.cluster))
+	_, err = c.eventsCli.Create(k8sutil.NewMemberAddEvent(m.Name, c.cluster))
 	if err != nil {
 		c.logger.Errorf("failed to create new member add event: %v", err)
 	}
 
 	return nil
+}
+
+// prepareNewVolume prepares the new volume to attach to new member
+// Associated PVC will be ensured here.
+func (c *Cluster) prepareNewVolume() (*Volume, error) {
+	v := c.volumes.PickOneAvailable()
+	if v == nil {
+		volumeName := createVolumeName(c.cluster.Name, c.volumeCounter)
+		v = &Volume{
+			Name:       volumeName,
+			Namespace:  c.cluster.Namespace,
+			IsAttached: false,
+		}
+	}
+	// since volume comming out from call to  `c.volumes.PickOneAvailable()` is not garantted to be in sync
+	// PVC. We try to recreate PVC in that case as well.
+	// So, don't move this code in above if block.
+	if err := c.createPVC(v.Name); err != nil && !apierrors.IsAlreadyExists(err) {
+		return nil, fmt.Errorf("failed to create persistent volume claim for seed member (%s): %v", v.Name, err)
+	}
+	//We don't want to skip volume count in case of already existing volume
+	if c.volumes[v.Name] == nil {
+		c.volumeCounter++
+		c.volumes.Add(v)
+		c.logger.Infof("Added new volume : %s", v.Name)
+	}
+	return v, nil
+}
+
+// attachVolumeToMember attach the existing volume from volumeset to member
+func (c *Cluster) attachVolumeToMember(v *Volume, m *etcdutil.Member) {
+	v.IsAttached = true
+	v.Member = m.Name
+	m.Volume = v.Name
+}
+
+// detachVolumeFromMember attach the existing volume from volumeset to member
+func (c *Cluster) detachVolumeFromMember(v *Volume, m *etcdutil.Member) {
+	if v != nil {
+		v.IsAttached = false
+		v.Member = ""
+	}
+	m.Volume = ""
 }
 
 func (c *Cluster) isSecurePeer() bool {
@@ -633,7 +625,9 @@ func (c *Cluster) pollPVCs() (pvcs []*v1.PersistentVolumeClaim, err error) {
 		return nil, fmt.Errorf("failed to list running pvcs: %v", err)
 	}
 
-	for _, pvc := range pvcList.Items {
+	c.logger.Infof("total pvcs found :%d ", len(pvcList.Items))
+	for i := range pvcList.Items {
+		pvc := &pvcList.Items[i]
 		if len(pvc.OwnerReferences) < 1 {
 			c.logger.Warningf("pollPVCs: ignore pvc %v: no owner", pvc.Name)
 			continue
@@ -643,7 +637,7 @@ func (c *Cluster) pollPVCs() (pvcs []*v1.PersistentVolumeClaim, err error) {
 				pvc.Name, pvc.OwnerReferences[0].UID, c.cluster.UID)
 			continue
 		}
-		pvcs = append(pvcs, &pvc)
+		pvcs = append(pvcs, pvc)
 	}
 
 	return pvcs, nil

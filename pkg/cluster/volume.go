@@ -69,6 +69,9 @@ func (vs VolumeSet) String() string {
 	return strings.Join(vstring, ",")
 }
 
+// PickOneAvailable will pick volume structure which is not attached to any member.
+// Here we don't care whether it's in sync with PVC. i.e. volume attached or unattached
+// at the execution of this function call may or may not have associated PVC
 func (vs VolumeSet) PickOneAvailable() *Volume {
 	for _, v := range vs {
 		if !v.IsAttached {
@@ -80,41 +83,19 @@ func (vs VolumeSet) PickOneAvailable() *Volume {
 	//RETHINK panic("empty")
 }
 
+//Add adds volume to volumeset
 func (vs VolumeSet) Add(v *Volume) {
 	vs[v.Name] = v
 }
 
+//Remove removes volume from volumeset
 func (vs VolumeSet) Remove(name string) {
 	delete(vs, name)
 }
 
 func createVolumeName(clusterName string, volume int) string {
-	return fmt.Sprintf("%s-%04d", clusterName, volume)
+	return fmt.Sprintf("%s-%04d-pvc", clusterName, volume)
 }
-
-func GetVolumeNameFromPVC(pvcName string) (string, error) {
-	if strings.HasSuffix(pvcName, "-pvc") {
-		return strings.TrimSuffix(pvcName, "-pvc"), nil
-	}
-	return "", fmt.Errorf("invalid PVC name")
-}
-
-/*
-func podsToVolumeSet(pods []*v1.Pod) VolumeSet {
-	volumes := etcdutil.VolumeSet{}
-	for _, pod := range pods {
-		pvc := pod.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim
-		v := &Volume{
-			Name:       pvc.ClaimName,
-			Namespace:  pod.Namespace,
-			Member:     pod.Name,
-			IsAttached: true,
-		}
-		volumes.Add(v)
-	}
-	return volumes
-}
-*/
 
 func pvcsToVolumeSet(pvcs []*v1.PersistentVolumeClaim) VolumeSet {
 	volumes := VolumeSet{}
@@ -131,30 +112,35 @@ func pvcsToVolumeSet(pvcs []*v1.PersistentVolumeClaim) VolumeSet {
 }
 
 func (c *Cluster) updateVolumes(known VolumeSet) {
-
+	c.volumes = VolumeSet{}
 	for _, v := range known {
 		c.logger.Infof("PVC name: %v", v.Name)
-		name, err := GetVolumeNameFromPVC(v.Name)
+		ct, err := getCounterFromVolumeName(v.Name)
 		if err != nil {
 			//invalid volume name
-			continue
-		}
-		ct, err := GetCounterFromVolumeName(name)
-		if err != nil {
-			//invalid volume name
+			c.logger.Errorf("skipping pvc %s cause :", v.Name, err)
 			continue
 		}
 		if ct+1 > c.volumeCounter {
 			c.volumeCounter = ct + 1
 		}
+		c.volumes.Add(v)
 
-		c.volumes[v.Name] = v
 	}
 
+	for _, m := range c.members {
+		if c.volumes[m.Volume] != nil {
+			c.attachVolumeToMember(c.volumes[m.Volume], m)
+		}
+	}
 	return
 }
 
-func GetCounterFromVolumeName(name string) (int, error) {
+func getCounterFromVolumeName(name string) (int, error) {
+	if !strings.HasSuffix(name, "-pvc") {
+		return -1, fmt.Errorf("invalid volume name")
+	}
+	name = strings.TrimSuffix(name, "-pvc")
 	i := strings.LastIndex(name, "-")
 	if i == -1 || i+1 >= len(name) {
 		return 0, fmt.Errorf("name (%s) does not contain '-' or anything after '-'", name)
