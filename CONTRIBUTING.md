@@ -1,3 +1,7 @@
+# Fork
+This is a fork of [coreos/etc-operator](https://github.com/coreos/etcd-operator) developed for the [gardener/gardener](https://github.com/gardener/gardener) project.   
+Find more details about this fork in [FORK.md](https://github.com/gardener/etcd-operator/blob/document-fork/FORK.md).
+
 # How to Contribute
 
 CoreOS projects are [Apache 2.0 licensed](LICENSE) and accept contributions via
@@ -42,8 +46,8 @@ Thanks for your contributions!
 
 ### Coding Style
 
-CoreOS projects written in Go follow a set of style guidelines that we've documented 
-[here](https://github.com/coreos/docs/tree/master/golang). Please follow them when 
+CoreOS projects written in Go follow a set of style guidelines that we've documented
+[here](https://github.com/coreos/docs/tree/master/golang). Please follow them when
 working on your contributions.
 
 ### Format of the Commit Message
