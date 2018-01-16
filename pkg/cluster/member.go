@@ -59,7 +59,7 @@ func (c *Cluster) updateMembers(known etcdutil.MemberSet) error {
 		if c.IsPodPVEnabled() {
 			volumeName := known[m.Name].Volume
 			if c.volumes[volumeName] != nil {
-				c.attachVolumeToMember(c.volumes[volumeName], newMember)
+				c.linkVolumeToMember(c.volumes[volumeName], newMember)
 			}
 		}
 		c.members[name] = newMember

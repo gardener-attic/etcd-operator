@@ -130,7 +130,7 @@ func (c *Cluster) updateVolumes(known VolumeSet) {
 
 	for _, m := range c.members {
 		if c.volumes[m.Volume] != nil {
-			c.attachVolumeToMember(c.volumes[m.Volume], m)
+			c.linkVolumeToMember(c.volumes[m.Volume], m)
 		}
 	}
 	return

@@ -93,28 +93,26 @@ func (c *Cluster) reconcileMembers(running etcdutil.MemberSet) error {
 		return c.resize()
 	}
 	c.logger.Infof("running size :%v, member size :%v, volume size :%v", L.Size(), c.members.Size(), c.volumes.Size())
-	// Case quoram is lost. Some how the pod got deleted
+	// Case quoram is lost.
 	if L.Size() < c.members.Size()/2+1 {
-		//We assume PVC's are still there. So mark PVC available.
+		//We assume PVCs are still there. So mark PVC available.
 		for _, m := range c.members.Diff(L) {
 			//TODO/RETHINK check if its corrupt then delete
-			c.detachVolumeFromMember(c.volumes[m.Volume], m)
+			c.unlinkVolumeFromMember(c.volumes[m.Volume], m)
 		}
 
-		// assume volumes are in sync with PVC at this stage
-		// only when volume quorum is lost do disaster recovery
-		// else use same pvc.
+		// When quorum number of PVCs are not available, do disaster recovery
+		// else use exsisting PVCs.
 		if c.volumes.Size() < c.members.Size()/2+1 {
 			for _, m := range c.members {
-				//RETHINK check if its corrupt then delete
-				c.detachVolumeFromMember(c.volumes[m.Volume], m)
+				c.unlinkVolumeFromMember(c.volumes[m.Volume], m)
 				c.members.Remove(m.Name)
 			}
 			c.logger.Infof("Volume quoram not met. Going for disaster recovery")
 			return c.disasterRecovery(L)
 		}
-		// handle this case separately since there is not etcd from which an
-		// etcd client can be created to add or remove member
+
+		// If no pods are running, bootstrap a cluster with a seed member and use existing PVC for etcd data.
 		if L.Size() == 0 {
 			for _, m := range c.members {
 				c.members.Remove(m.Name)
@@ -140,9 +138,7 @@ func (c *Cluster) resize() error {
 
 		return c.addOneMember()
 	}
-	//Remove member with its PVC since it is scale down case. If we not remove PVC then, it might happen that when
-	// we restore to previous revision and then scale up  again, same PVC may get attached to new member and
-	// this will loose the atomic nature of cluster
+	//Remove member with its PVC since it is scale down case.
 	return c.removeOneMember()
 }
 
@@ -173,7 +169,7 @@ func (c *Cluster) addOneMember() error {
 
 	var v *Volume
 	if c.IsPodPVEnabled() {
-		v, err = c.prepareNewVolume()
+		v, err = c.prepareVolume()
 		if err != nil {
 			return err
 		}
@@ -183,7 +179,7 @@ func (c *Cluster) addOneMember() error {
 	}
 	c.memberCounter++
 	if c.IsPodPVEnabled() {
-		c.attachVolumeToMember(v, newMember)
+		c.linkVolumeToMember(v, newMember)
 	}
 	c.members.Add(newMember)
 	c.logger.Infof("added member (%s)", newMember.Name)

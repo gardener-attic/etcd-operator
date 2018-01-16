@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
       - name: etcd-operator
-        image: georgekk/etcd-operator-gcs:v1.4
+        image: eu.gcr.io/sap-cloud-platform-dev1/etcd-operator:v0.6.5
         env:
         - name: MY_POD_NAMESPACE
           valueFrom:
