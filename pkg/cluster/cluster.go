@@ -419,7 +419,7 @@ func (c *Cluster) startSeedMember(recoverFromBackup bool) error {
 	c.members.Add(m)
 	var v *Volume
 	if c.IsPodPVEnabled() {
-		v, err = c.prepareNewVolume()
+		v, err = c.prepareVolume()
 		if err != nil {
 			return err
 		}
@@ -428,7 +428,7 @@ func (c *Cluster) startSeedMember(recoverFromBackup bool) error {
 		return fmt.Errorf("failed to create seed member (%s): %v", m.Name, err)
 	}
 	if c.IsPodPVEnabled() {
-		c.attachVolumeToMember(v, m)
+		c.linkVolumeToMember(v, m)
 	}
 	c.members.Add(m)
 	c.memberCounter++
@@ -442,9 +442,8 @@ func (c *Cluster) startSeedMember(recoverFromBackup bool) error {
 	return nil
 }
 
-// prepareNewVolume prepares the new volume to attach to new member
-// Associated PVC will be ensured here.
-func (c *Cluster) prepareNewVolume() (*Volume, error) {
+// prepareVolume selects a volume to attach to a member. It picks one if available else creates a new volume.
+func (c *Cluster) prepareVolume() (*Volume, error) {
 	v := c.volumes.PickOneAvailable()
 	if v == nil {
 		volumeName := createVolumeName(c.cluster.Name, c.volumeCounter)
@@ -454,9 +453,7 @@ func (c *Cluster) prepareNewVolume() (*Volume, error) {
 			IsAttached: false,
 		}
 	}
-	// since volume comming out from call to  `c.volumes.PickOneAvailable()` is not garantted to be in sync
-	// PVC. We try to recreate PVC in that case as well.
-	// So, don't move this code in above if block.
+
 	if err := c.createPVC(v.Name); err != nil && !apierrors.IsAlreadyExists(err) {
 		return nil, fmt.Errorf("failed to create persistent volume claim for seed member (%s): %v", v.Name, err)
 	}
@@ -469,15 +466,15 @@ func (c *Cluster) prepareNewVolume() (*Volume, error) {
 	return v, nil
 }
 
-// attachVolumeToMember attach the existing volume from volumeset to member
-func (c *Cluster) attachVolumeToMember(v *Volume, m *etcdutil.Member) {
+// linkVolumeToMember attach the existing volume from volumeset to member
+func (c *Cluster) linkVolumeToMember(v *Volume, m *etcdutil.Member) {
 	v.IsAttached = true
 	v.Member = m.Name
 	m.Volume = v.Name
 }
 
-// detachVolumeFromMember attach the existing volume from volumeset to member
-func (c *Cluster) detachVolumeFromMember(v *Volume, m *etcdutil.Member) {
+// unlinkVolumeFromMember removes the existing volume from member
+func (c *Cluster) unlinkVolumeFromMember(v *Volume, m *etcdutil.Member) {
 	if v != nil {
 		v.IsAttached = false
 		v.Member = ""
@@ -615,7 +612,6 @@ func (c *Cluster) pollPods() (running, pending []*v1.Pod, err error) {
 			pending = append(pending, pod)
 		}
 	}
-
 	return running, pending, nil
 }
 
