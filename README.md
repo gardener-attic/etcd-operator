@@ -1,6 +1,6 @@
 # Fork
 This is a fork of [coreos/etc-operator](https://github.com/coreos/etcd-operator) developed for the [gardener/gardener](https://github.com/gardener/gardener) project.   
-Find more details about this fork in [FORK.md](https://github.com/gardener/etcd-operator/blob/document-fork/FORK.md).
+Find more details about this fork in [FORK.md](./FORK.md).
 
 # etcd operator
 unit/integration:
