@@ -118,7 +118,7 @@ func (c *Cluster) updateVolumes(known VolumeSet) {
 		ct, err := getCounterFromVolumeName(v.Name)
 		if err != nil {
 			//invalid volume name
-			c.logger.Errorf("skipping pvc %s cause :", v.Name, err)
+			c.logger.Errorf("skipping pvc %s cause: %v", v.Name, err)
 			continue
 		}
 		if ct+1 > c.volumeCounter {
