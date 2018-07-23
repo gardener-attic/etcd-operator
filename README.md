@@ -2,6 +2,9 @@
 This is a fork of [coreos/etc-operator](https://github.com/coreos/etcd-operator) developed for the [gardener/gardener](https://github.com/gardener/gardener) project.   
 Find more details about this fork in [FORK.md](./FORK.md).
 
+## Archived component no longer maintained
+* This component is not used by [gardener](https://github.com/gardener) anymore and no longer maintained. It was archived in the [gardener-attic](https://github.com/gardener-attic).
+
 # etcd operator
 unit/integration:
 [![Build Status](https://jenkins-etcd-public.prod.coreos.systems/view/operator/job/etcd-operator-unit-master/badge/icon)](https://jenkins-etcd-public.prod.coreos.systems/view/operator/job/etcd-operator-unit-master/)
